@@ -1,9 +1,9 @@
-name: Deploy Develop Branch to Server
+name: Deploy Deployment Branch to Server
 
 on:
   push:
     branches:
-      - develop
+      - deployment
 
 jobs:
   deploy:
@@ -21,8 +21,10 @@ jobs:
           key: ${{ secrets.SSH_DEVELOP_PRIVATE_KEY }}
           script: |
             cd /home/github_user/workspace/mini-rag
-            git checkout develop
-            git pull
+            git fetch origin
+            git checkout deployment
+            git pull origin deployment
+
             sudo systemctl restart minirag.service
             echo "Waiting..."
             sleep 20
@@ -30,15 +32,12 @@ jobs:
             for i in {1..6}; do
               if ss -tuln | grep -q ':80'; then
                 echo "✅ Port 80 is now active."
-                break
+                exit 0
               else
                 echo "⏳ Port 80 not ready yet. Retrying in 5 seconds..."
                 sleep 5
               fi
             done
 
-            if ! ss -tuln | grep -q ':80'; then
-              echo "❌ Service failed to start on port 80"
-              exit 1
-            fi
-
+            echo "❌ Service failed to start on port 80"
+            exit 1
