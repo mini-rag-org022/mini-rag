@@ -13,6 +13,7 @@ from models.AssetModel import AssetModel
 from models.db_schemes import DataChunk, Asset
 from models.enums.AssetTypeEnum import AssetTypeEnum
 from controllers import NLPController
+from tasks.file_processing import process_project_files
 
 logger = logging.getLogger('uvicorn.error')
 
@@ -23,7 +24,7 @@ data_router = APIRouter(
 
 @data_router.post("/upload/{project_id}")
 async def upload_data(request: Request, project_id: int, file: UploadFile,
-                    app_settings: Settings = Depends(get_settings)):
+                      app_settings: Settings = Depends(get_settings)):
         
     
     project_model = await ProjectModel.create_instance(
@@ -96,6 +97,28 @@ async def process_endpoint(request: Request, project_id: int, process_request: P
     overlap_size = process_request.overlap_size
     do_reset = process_request.do_reset
 
+    task = process_project_files.delay(
+        project_id=project_id,
+        file_id=process_request.file_id,
+        chunk_size=chunk_size,
+        overlap_size=overlap_size,
+        do_reset=do_reset,
+    )
+
+    return JSONResponse(
+        content={
+            "signal": ResponseSignal.PROCESSING_SUCCESS.value,
+            "task_id": task.id
+        }
+    )
+
+
+
+
+
+
+
+
     project_model = await ProjectModel.create_instance(
         db_client=request.app.db_client
     )
@@ -108,7 +131,7 @@ async def process_endpoint(request: Request, project_id: int, process_request: P
         vectordb_client=request.app.vectordb_client,
         generation_client=request.app.generation_client,
         embedding_client=request.app.embedding_client,
-        template_parser=request.app.template_parser
+        template_parser=request.app.template_parser,
     )
 
     asset_model = await AssetModel.create_instance(
@@ -117,18 +140,10 @@ async def process_endpoint(request: Request, project_id: int, process_request: P
 
     project_files_ids = {}
     if process_request.file_id:
-        # Canonical input is the Mongo asset _id returned by /upload.
-        # Fall back to asset_name (disk filename) for backward compatibility.
-        asset_record = await asset_model.get_asset_by_id(
-            asset_id=process_request.file_id,
+        asset_record = await asset_model.get_asset_record(
             asset_project_id=project.project_id,
+            asset_name=process_request.file_id
         )
-
-        if asset_record is None:
-            asset_record = await asset_model.get_asset_record(
-                asset_project_id=project.project_id,
-                asset_name=process_request.file_id
-            )
 
         if asset_record is None:
             return JSONResponse(
