@@ -29,6 +29,7 @@ class PGVectorProvider(VectorDBInterface):
         self.default_index_name = lambda collection_name: f"{collection_name}_vector_idx"
 
 
+
     async def connect(self):
         async with self.db_client() as session:
             try:
@@ -46,6 +47,12 @@ class PGVectorProvider(VectorDBInterface):
                 # If extension already exists or any other error, just log and continue
                 self.logger.warning(f"Vector extension setup: {str(e)}")
                 await session.rollback()
+
+            except Exception as e:
+                # Log the error and roll back the transaction
+                self.logger.warning(f"Vector extension setup: {e}")
+                await session.rollback()
+
 
     async def disconnect(self):
         pass

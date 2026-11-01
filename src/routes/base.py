@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, Depends
-import os 
+from datetime import datetime
 from helpers.config import get_settings, Settings
 
 base_router = APIRouter( # object from api router
@@ -15,5 +15,6 @@ async def welcome(app_settings: Settings = Depends(get_settings)):
 
     return{
         "app_name":app_name,
-        "app_version":app_version
+        "app_version":app_version,
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
